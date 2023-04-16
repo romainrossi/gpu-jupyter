@@ -4,8 +4,9 @@ LABEL maintainer="Christoph Schranz <christoph.schranz@salzburgresearch.at>, Mat
 # https://www.tensorflow.org/install/source#gpu
 # installation via conda leads to errors in version 4.8.2
 USER ${NB_UID}
+
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir tensorflow==2.10.1 keras==2.10 && \
+    pip install --no-cache-dir tensorflow==2.12.0 keras==2.12.0 && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
@@ -19,18 +20,16 @@ RUN conda install --quiet --yes \
 # Check compatibility here:
 # https://pytorch.org/get-started/locally/
 # Installation via conda leads to errors installing cudatoolkit=11.1
-# RUN pip install --no-cache-dir torch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1  && \
-#     torchviz==0.0.2 --extra-index-url https://download.pytorch.org/whl/cu116
-RUN set -ex \
- && buildDeps=' \
-    torch==1.13.1 \
-    torchvision==0.14.1 \
-    torchaudio==0.13.1 \
-    torchviz==0.0.2 \
-' \
- && pip install --no-cache-dir $buildDeps --extra-index-url https://download.pytorch.org/whl/cu116 \
- && fix-permissions "${CONDA_DIR}" \
- && fix-permissions "/home/${NB_USER}"
+# WARNING : pytorch=2.0.0=*cuda11.8* <- mandatory to force install PyTorch with GPU support even on system without GPU hardware (i.e Docker)
+RUN mamba install --quiet --yes -c pytorch -c nvidia \
+    cudatoolkit=11.8 \
+    pytorch=2.0.0=py3.10_cuda11.8_* \
+    torchvision \
+    torchaudio \
+    pytorch-cuda=11.8 && \
+    mamba clean --all -f -y && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
 
 USER root
 ENV CUDA_PATH=/opt/conda/
@@ -42,10 +41,10 @@ RUN apt-get update && \
 
 # reinstall nvcc with cuda-nvcc to install ptax
 USER $NB_UID
-RUN conda install -c nvidia cuda-nvcc -y && \
-    conda clean --all -f -y && \
-    fix-permissions $CONDA_DIR && \
-    fix-permissions /home/$NB_USER
+RUN mamba install -c nvidia cuda-nvcc -y && \
+    mamba clean --all -f -y && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
 
 USER root
 RUN ln -s /opt/conda/bin/ptxas /usr/bin/ptxas
